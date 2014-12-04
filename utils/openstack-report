@@ -216,21 +216,38 @@ def get_all_tenant_flavorcount():
     d = {}
 
     for tenant in tenantlist:
-        nova = get_nova_client(tenant.name)
-        t_tenant_name  = tenant.name
-        t_flavor_details = get_flavor_count(nova)
 
-        d[t_tenant_name] = {
-            'm1.tiny'   : t_flavor_details['m1.tiny'],
-            'm1.small'  : t_flavor_details['m1.small'],
-            'm1.medium' : t_flavor_details['m1.medium'],
-            'm1.large'  : t_flavor_details['m1.large'],
-            'm1.xlarge' : t_flavor_details['m1.xlarge'],
-            'm1.2xlarge': t_flavor_details['m1.2xlarge'],
-            'm1.4xlarge': t_flavor_details['m1.4xlarge'],
-            'm1.8xlarge': t_flavor_details['m1.8xlarge'],
-            'custom'    : t_flavor_details['custom']
-        }
+        if tenant.enabled == False:
+            t_tenant_name = tenant.name
+
+            d[t_tenant_name] = {
+                'm1.tiny'   : 'disabled',
+                'm1.small'  : 'disabled',
+                'm1.medium' : 'disabled',
+                'm1.large'  : 'disabled',
+                'm1.xlarge' : 'disabled',
+                'm1.2xlarge': 'disabled',
+                'm1.4xlarge': 'disabled',
+                'm1.8xlarge': 'disabled',
+                'custom'    : 'disabled',
+            }
+
+        else:
+            nova = get_nova_client(tenant.name)
+            t_tenant_name  = tenant.name
+            t_flavor_details = get_flavor_count(nova)
+
+            d[t_tenant_name] = {
+                'm1.tiny'   : t_flavor_details['m1.tiny'],
+                'm1.small'  : t_flavor_details['m1.small'],
+                'm1.medium' : t_flavor_details['m1.medium'],
+                'm1.large'  : t_flavor_details['m1.large'],
+                'm1.xlarge' : t_flavor_details['m1.xlarge'],
+                'm1.2xlarge': t_flavor_details['m1.2xlarge'],
+                'm1.4xlarge': t_flavor_details['m1.4xlarge'],
+                'm1.8xlarge': t_flavor_details['m1.8xlarge'],
+                'custom'    : t_flavor_details['custom']
+            }
 
         if _debug == True:
             print "    [-] %s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (t_tenant_name,
@@ -275,24 +292,55 @@ def get_all_tenant_utilization():
     d = collections.OrderedDict()
 
     for tenant in tenantlist:
-        nova = get_nova_client(tenant.name)
-        cinder = get_cinder_client(tenant.name)
 
-        compute_summary = get_instance_details(nova)
-        storage_summary = get_volume_details(cinder)
+        # Skip disabled tenants
+        if tenant.enabled == False:
+            t_tenant_name           = tenant.name
+            t_instances             = 'disabled'
+            t_instances_active      = 'disabled'
+            t_vcpu                  = 'disabled'
+            t_vcpu_active           = 'disabled'
+            t_ram                   = 'disabled'
+            t_ram_active            = 'disabled'
+            t_disk_ephemeral        = 'disabled'
+            t_float_allocated       = 'disabled'
+            t_float_disassociated   = 'disabled'
+            t_persist_volcount      = 'disabled'
+            t_persist_provisioned   = 'disabled'
 
-        t_tenant_name           = tenant.name
-        t_instances             = compute_summary['total_instances']
-        t_instances_active      = compute_summary['total_instances_active']
-        t_vcpu                  = compute_summary['total_vcpu']
-        t_vcpu_active           = compute_summary['total_vcpu_active']
-        t_ram                   = compute_summary['total_ram'] / 1024
-        t_ram_active            = compute_summary['total_ram_active'] / 1024
-        t_disk_ephemeral        = compute_summary['total_disk'] + compute_summary['total_ephemeral']
-        t_float_allocated       = compute_summary['total_floatingip_allocated']
-        t_float_disassociated   = compute_summary['total_floatingip_disassocated']
-        t_persist_volcount      = storage_summary['total_vols_count']
-        t_persist_provisioned   = storage_summary['total_vols_provisioned_capacity']
+        else :
+            nova = get_nova_client(tenant.name)
+            cinder = get_cinder_client(tenant.name)
+
+            compute_summary = get_instance_details(nova)
+            storage_summary = get_volume_details(cinder)
+
+            t_tenant_name           = tenant.name
+            t_instances             = compute_summary['total_instances']
+            t_instances_active      = compute_summary['total_instances_active']
+            t_vcpu                  = compute_summary['total_vcpu']
+            t_vcpu_active           = compute_summary['total_vcpu_active']
+            t_ram                   = compute_summary['total_ram'] / 1024
+            t_ram_active            = compute_summary['total_ram_active'] / 1024
+            t_disk_ephemeral        = compute_summary['total_disk'] + compute_summary['total_ephemeral']
+            t_float_allocated       = compute_summary['total_floatingip_allocated']
+            t_float_disassociated   = compute_summary['total_floatingip_disassocated']
+            t_persist_volcount      = storage_summary['total_vols_count']
+            t_persist_provisioned   = storage_summary['total_vols_provisioned_capacity']
+
+            aggr_inst_prov              = aggr_inst_prov + t_instances
+            aggr_inst_active            = aggr_inst_active + t_instances_active
+            aggr_vcpu_prov              = aggr_vcpu_prov + t_vcpu
+            aggr_vcpu_active            = aggr_vcpu_active + t_vcpu_active
+            aggr_ram_prov               = aggr_ram_prov + t_ram
+            aggr_ram_active             = aggr_ram_active + t_ram_active
+            aggr_disk_prov              = aggr_disk_prov + t_disk_ephemeral
+            aggr_floatip_alloc          = aggr_floatip_alloc + t_float_allocated
+            aggr_floatip_disassoc       = aggr_floatip_disassoc + t_float_disassociated
+            aggr_persist_volcount       = aggr_persist_volcount + t_persist_volcount
+            aggr_persist_provisioned    = aggr_persist_provisioned + t_persist_provisioned
+
+
 
         # Inst_Prov,Inst_Active,VCPU_Prov,VCPU_Active,RAM_Prov,RAM_Active,Disk_Prov_GB,FloatIP_Alloc,FloatIP_Disassoc,Vols_Prov,Vols_Prov_GB"
         # k,v where k becomes header
@@ -310,18 +358,6 @@ def get_all_tenant_utilization():
             'Vols_Prov_GB'      : t_persist_provisioned
         }
 
-        aggr_inst_prov              = aggr_inst_prov + t_instances
-        aggr_inst_active            = aggr_inst_active + t_instances_active
-        aggr_vcpu_prov              = aggr_vcpu_prov + t_vcpu
-        aggr_vcpu_active            = aggr_vcpu_active + t_vcpu_active
-        aggr_ram_prov               = aggr_ram_prov + t_ram
-        aggr_ram_active             = aggr_ram_active + t_ram_active
-        aggr_disk_prov              = aggr_disk_prov + t_disk_ephemeral
-        aggr_floatip_alloc          = aggr_floatip_alloc + t_float_allocated
-        aggr_floatip_disassoc       = aggr_floatip_disassoc + t_float_disassociated
-        aggr_persist_volcount       = aggr_persist_volcount + t_persist_volcount
-        aggr_persist_provisioned    = aggr_persist_provisioned + t_persist_provisioned
-
         if _debug == True:
             print "    [-] %s, %s, %s, %s, %s, %s, %s, %s,%s, %s, %s,%s" % (
                     t_tenant_name,
@@ -337,6 +373,7 @@ def get_all_tenant_utilization():
                     t_persist_volcount,
                     t_persist_provisioned)
 
+    # Print Aggregates
     if _debug == True:
         print "    [-] Total,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (
                 aggr_inst_prov,
