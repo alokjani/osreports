@@ -23,6 +23,7 @@ import csv
 import novaclient.v1_1.client as novaclient
 import cinderclient.v1.client as cinderclient
 import keystoneclient.v2_0.client as keystoneclient
+import swiftclient.client as swiftclient
 import collections
 
 # Print unicode text to the terminal
@@ -38,15 +39,16 @@ os_auth_url = None
 _debug = False
 
 flavorListDefault = [
-    'm1.tiny' ,
-    'm1.small' ,
-    'm1.medium' ,
-    'm1.large' ,
-    'm1.xlarge' ,
-    'm1.2xlarge' ,
-    'm1.4xlarge' ,
+    'm1.tiny',
+    'm1.small',
+    'm1.medium',
+    'm1.large',
+    'm1.xlarge',
+    'm1.2xlarge',
+    'm1.4xlarge',
     'm1.8xlarge'
 ]
+
 
 # --
 # some helper functions
@@ -56,6 +58,7 @@ def load_creds_env():
     os_username = os.environ['OS_USERNAME']
     os_password = os.environ['OS_PASSWORD']
     os_auth_url = os.environ['OS_AUTH_URL']
+
 
 def get_keystone_creds():
     global os_username, os_password, os_auth_url
@@ -69,22 +72,30 @@ def get_keystone_creds():
  #   d['tenant_name'] = os.environ['OS_TENANT_NAME']
     return d
 
+
 def get_nova_creds():
     d = {}
-    d['username'] = os.environ['OS_USERNAME']
-    d['api_key']  = os.environ['OS_PASSWORD']
-    d['auth_url'] = os.environ['OS_AUTH_URL']
+    d['username']   = os.environ['OS_USERNAME']
+    d['api_key']    = os.environ['OS_PASSWORD']
+    d['auth_url']   = os.environ['OS_AUTH_URL']
     pass
 
+
 def get_nova_client(p_tenant_name):
-    return novaclient.Client(os_username, os_password, p_tenant_name, os_auth_url,service_type='compute')
+    return novaclient.Client(os_username, os_password, p_tenant_name, os_auth_url, service_type='compute')
+
 
 def get_cinder_client(p_tenant_name):
     return cinderclient.Client(os_username, os_password, p_tenant_name, os_auth_url)
 
+
 def get_keystone_client():
     creds = get_keystone_creds()
     return keystoneclient.Client(**creds)
+
+
+def get_swift_client(p_tenant_name):
+    return swiftclient.Connection(authurl=os_auth_url, user=os_username, key=os_password, tenant_name=p_tenant_name, auth_version='2')
 
 
 # --
@@ -184,8 +195,22 @@ def get_volume_details(p_cinder_client):
         total_provisioned = total_provisioned + volumes.size
 
     summary = {}
-    summary['total_vols_count'] =  len(volumelist)
+    summary['total_vols_count'] = len(volumelist)
     summary['total_vols_provisioned_capacity'] = total_provisioned
+    return summary
+
+
+# --
+# get_object_details()
+# Returns details of object utilization for a tenant
+#
+def get_object_details(p_swift_client):
+    summary = {}
+    t_object_store = p_swift_client.get_account()
+
+    summary['total_container_count']     = int(t_object_store[0]['x-account-container-count'])
+    summary['total_object_count']        = int(t_object_store[0]['x-account-object-count'])
+    summary['total_object_storage_used'] = float("{0:.2f}".format(int(t_object_store[0]['x-account-bytes-used']) / (1024*1024*1024)))
     return summary
 
 
@@ -210,7 +235,7 @@ def get_all_tenant_flavorcount():
     tenantlist = keystone.tenants.list()
 
     global _debug
-    if _debug == True:
+    if _debug:
         print '[+] Crunching flavor stats for all tenants ...'
 
     d = {}
@@ -287,6 +312,9 @@ def get_all_tenant_utilization():
     aggr_floatip_disassoc = 0
     aggr_persist_volcount       = 0
     aggr_persist_provisioned    = 0
+    aggr_container_count    = 0
+    aggr_object_count = 0
+    aggr_object_storage_used = 0
 
     # Will be returning an aggregate at the end .. so lets use OrderedDict()
     d = collections.OrderedDict()
@@ -307,13 +335,18 @@ def get_all_tenant_utilization():
             t_float_disassociated   = 'disabled'
             t_persist_volcount      = 'disabled'
             t_persist_provisioned   = 'disabled'
+            t_container_count       = 'disabled'
+            t_object_count          = 'disabled'
+            t_object_storage_used   = 'disabled'
 
         else :
             nova = get_nova_client(tenant.name)
             cinder = get_cinder_client(tenant.name)
+            swift = get_swift_client(tenant.name)
 
             compute_summary = get_instance_details(nova)
             storage_summary = get_volume_details(cinder)
+            object_summary  = get_object_details(swift)
 
             t_tenant_name           = tenant.name
             t_instances             = compute_summary['total_instances']
@@ -327,6 +360,9 @@ def get_all_tenant_utilization():
             t_float_disassociated   = compute_summary['total_floatingip_disassocated']
             t_persist_volcount      = storage_summary['total_vols_count']
             t_persist_provisioned   = storage_summary['total_vols_provisioned_capacity']
+            t_container_count       = object_summary['total_container_count']
+            t_object_count          = object_summary['total_object_count']
+            t_object_storage_used   = object_summary['total_object_storage_used']
 
             aggr_inst_prov              = aggr_inst_prov + t_instances
             aggr_inst_active            = aggr_inst_active + t_instances_active
@@ -339,10 +375,11 @@ def get_all_tenant_utilization():
             aggr_floatip_disassoc       = aggr_floatip_disassoc + t_float_disassociated
             aggr_persist_volcount       = aggr_persist_volcount + t_persist_volcount
             aggr_persist_provisioned    = aggr_persist_provisioned + t_persist_provisioned
+            aggr_container_count        = aggr_container_count + t_container_count
+            aggr_object_count           = aggr_object_count + t_object_count
+            aggr_object_storage_used    = aggr_object_storage_used + t_object_storage_used
 
-
-
-        # Inst_Prov,Inst_Active,VCPU_Prov,VCPU_Active,RAM_Prov,RAM_Active,Disk_Prov_GB,FloatIP_Alloc,FloatIP_Disassoc,Vols_Prov,Vols_Prov_GB"
+        # Inst_Prov,Inst_Active,VCPU_Prov,VCPU_Active,RAM_Prov,RAM_Active,Disk_Prov_GB,FloatIP_Alloc,FloatIP_Disassoc,Vols_Prov,Vols_Prov_GB,Object_Containers,Object_Count,Object_Storage_Used_GB"
         # k,v where k becomes header
         d[t_tenant_name] = {
             'Inst_Prov'         : t_instances,
@@ -355,11 +392,14 @@ def get_all_tenant_utilization():
             'FloatIP_Alloc'     : t_float_allocated,
             'FloatIP_Disassoc'  : t_float_disassociated,
             'Vols_Prov'         : t_persist_volcount,
-            'Vols_Prov_GB'      : t_persist_provisioned
+            'Vols_Prov_GB'      : t_persist_provisioned,
+            'Object_Containers' : t_container_count,
+            'Object_Count'      : t_object_count,
+            'Object_Storage_Used_GB' : t_object_storage_used
         }
 
         if _debug == True:
-            print "    [-] %s, %s, %s, %s, %s, %s, %s, %s,%s, %s, %s,%s" % (
+            print "    [-] %s, %s, %s, %s, %s, %s, %s, %s,%s, %s, %s, %s, %s, %s, %s" % (
                     t_tenant_name,
                     t_instances,
                     t_instances_active,
@@ -371,11 +411,14 @@ def get_all_tenant_utilization():
                     t_float_allocated,
                     t_float_disassociated,
                     t_persist_volcount,
-                    t_persist_provisioned)
+                    t_persist_provisioned,
+                    t_container_count,
+                    t_object_count,
+                    t_object_storage_used)
 
     # Print Aggregates
     if _debug == True:
-        print "    [-] Total,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (
+        print "    [-] Total,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s" % (
                 aggr_inst_prov,
                 aggr_inst_active,
                 aggr_vcpu_prov,
@@ -386,7 +429,10 @@ def get_all_tenant_utilization():
                 aggr_floatip_alloc,
                 aggr_floatip_disassoc,
                 aggr_persist_volcount,
-                aggr_persist_provisioned)
+                aggr_persist_provisioned,
+                aggr_container_count,
+                aggr_object_count,
+                aggr_object_storage_used)
 
     # Adding aggregates at the end of ordered dict
     d['_Total'] = {
@@ -400,7 +446,10 @@ def get_all_tenant_utilization():
             'FloatIP_Alloc'     : aggr_floatip_alloc,
             'FloatIP_Disassoc'  : aggr_floatip_disassoc,
             'Vols_Prov'         : aggr_persist_volcount,
-            'Vols_Prov_GB'      : aggr_persist_provisioned
+            'Vols_Prov_GB'      : aggr_persist_provisioned,
+            'Object_Containers' : aggr_container_count,
+            'Object_Count'      : aggr_object_count,
+            'Object_Storage_Used_GB' : aggr_object_storage_used
     }
 
     return d
@@ -452,7 +501,7 @@ def csv_report(d_report,l_header,file_name):
 def main(argv):
     parser = argparse.ArgumentParser(description="Command-line interface for generating reports for Openstack clusters")
 
-    group = parser.add_mutually_exclusive_group()
+    group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-f', '--flavorcount', help='Per tenant flavorcount',
                        action="store_true", default=False)
     group.add_argument('-u', '--utilization', help='Per tenant utilization',
@@ -501,7 +550,10 @@ def main(argv):
             'FloatIP_Alloc',
             'FloatIP_Disassoc',
             'Vols_Prov',
-            'Vols_Prov_GB'
+            'Vols_Prov_GB',
+            'Object_Containers',
+            'Object_Count',
+            'Object_Storage_Used_GB'
         ]
         # Write header + report to target
         csv_report(report,report_headers,output_file)
