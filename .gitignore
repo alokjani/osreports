@@ -16,3 +16,6 @@ build
 # Misc
 *.orig
 *.ipynb
+dist
+AUTHORS
+ChangeLog
