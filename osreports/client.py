@@ -20,7 +20,7 @@ import os
 import sys
 import argparse
 import csv
-import novaclient.v1_1.client as novaclient
+from novaclient import client as novaclient
 import cinderclient.v1.client as cinderclient
 import keystoneclient.v2_0.client as keystoneclient
 import swiftclient.client as swiftclient
@@ -82,7 +82,7 @@ def get_nova_creds():
 
 
 def get_nova_client(p_tenant_name):
-    return novaclient.Client(os_username, os_password, p_tenant_name, os_auth_url, service_type='compute')
+    return novaclient.Client("2",os_username, os_password, p_tenant_name, os_auth_url, service_type='compute')
 
 
 def get_cinder_client(p_tenant_name):
@@ -498,7 +498,7 @@ def csv_report(d_report,l_header,file_name):
         csv_writer.writerow(t_tenant_row)
 
 
-def main(argv):
+def main():
     parser = argparse.ArgumentParser(description="Command-line interface for generating reports for Openstack clusters")
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -560,4 +560,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

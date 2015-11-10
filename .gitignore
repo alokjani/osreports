@@ -1,0 +1,18 @@
+# Python related
+*.egg
+*.egg-info
+*.pyc
+.eggs
+TAGS
+build
+
+# Test related
+*.log
+.venv
+
+# Editors
+*.swp
+
+# Misc
+*.orig
+*.ipynb
