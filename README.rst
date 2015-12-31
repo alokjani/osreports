@@ -1,38 +1,36 @@
-Introduction
-============
+OpenStack Utilization and Capacity Reporter
+===========================================
 
-`osreports` is a python utility for OpenStack Clouds that can provide
-reporting for resource utilization, per tenant usage etc. via a scheduled cron
-job currently.
+`osreports` is an operators' tool, with the aim to simplify capacity planning
+for OpenStack Clouds.
 
-`osreports` is useful in cloud management activities like capacity planning.
-It can also be useful to generate simplified MIS style reports in low variance
-clouds esp. in the absence of Ceilometer.
+`osreports` generates simplified utilization reports on per tenant basis, that
+helps is identifying utilization patterns per tenant. Using this a cloud
+provider can make effective data-driven decisions for the future.
 
+`osreports` is useful in enterprise clouds, especially in the absence of proper
+metering/billing solutions.
 
 Installation
 ============
 
-1. To get the last official release
+To get the last official release
 
 .. sourcecode:: console
    
-   $ sudo pip install osreports
+   $ pip install osreports
 
-or alternatively
+For the latest version 
 
 .. sourcecode:: console
 
-    $ sudo pip install -e git+https://github.com/alokjani/osreports.git#egg=osreports
+    $ pip install -e git+https://github.com/alokjani/osreports.git#egg=osreports
 
 
 Development
 ===========
 
-Setup 
------
-
-To Install into virtual environment
+To setup a dev/test environment 
 
 .. sourcecode:: console
 
@@ -42,25 +40,20 @@ To Install into virtual environment
     $ . .venv/bin/activate
     $ pip install -r requirements.txt
 
-              
-Build documentation
--------------------
 
-TODO
-
-Testing
--------
-
-TODO
-
-
-Contributing
-============
-
-- License: Apache License, Version 2.0
-- `Source Code`_
-- Bugs_ - Issue tracking
+- `Source Code`_ : Github for submitting patches
+- Bugs_ : Launchpad for Issue tracking
+- Build documentation & Testing : Coming Soon 
+- License : Apache License, Version 2.0
 
 .. _Source Code: https://github.com/alokjani/osreports
-.. _Bugs: https://github.com/alokjani/osreports/issues
+.. _Bugs: https://bugs.launchpad.net/osreports
+
+
+
+Author
+======
+
+- Alok Jani
+
 
